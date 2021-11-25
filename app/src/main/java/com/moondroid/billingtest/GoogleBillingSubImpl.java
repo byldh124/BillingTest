@@ -22,11 +22,14 @@ import com.android.billingclient.api.SkuDetails;
 import com.android.billingclient.api.SkuDetailsParams;
 import com.android.billingclient.api.SkuDetailsResponseListener;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.List;
 
-public class GoogleBillingImpl implements PurchasesUpdatedListener {
-    private static final String TAG = "GoogleBillingImpl";
+public class GoogleBillingSubImpl implements PurchasesUpdatedListener {
+    private static final String TAG = "GoogleBillingSubImpl";
 
     //결제 client
     private final BillingClient mBillingClient;
@@ -38,7 +41,7 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
     private BillingListener mBillingListener;
 
 
-    public GoogleBillingImpl(@NonNull final Context context, BillingListener billingListener) {
+    public GoogleBillingSubImpl(@NonNull final Context context, BillingListener billingListener) {
         mContext = context;
         mBillingListener = billingListener;
 
@@ -51,8 +54,8 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
 
     /**
      * BillingClient를 세팅하는 작업
-     *  - 구글 플레이 연결
-     *  - 상품목록 생성
+     * - 구글 플레이 연결
+     * - 상품목록 생성
      */
     public void init() {
         try {
@@ -60,15 +63,37 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
                 @Override
                 public void onBillingSetupFinished(@NonNull BillingResult billingResult) {
                     if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                        // BillingClient가 구글플레이와 연결이 되면 상품목록을 넣어넣음.
+
+                        //BillingClient의 연결이 완료되면 현재 사용자의 구매 상태 (구독 중, 구독 취소, 결제 보류 등)를 받아온다.
+                        mBillingClient.queryPurchasesAsync(BillingClient.SkuType.SUBS, new PurchasesResponseListener() {
+                            @Override
+                            public void onQueryPurchasesResponse(@NonNull BillingResult billingResult, @NonNull List<Purchase> list) {
+                                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                                    for (Purchase purchase : list) {
+                                        //TODO 결제 상태에 따른 Process
+                                        Log.e(TAG, purchase.getOriginalJson());
+
+                                        //결제 상태 check 예시
+                                        /*try {
+                                            JSONObject purchaseData = new JSONObject(purchase.getOriginalJson());
+                                            String packageName = purchaseData.getString("packageName");
+                                            String productId = purchaseData.getString("productId");
+                                            if (packageName.equals(mContext.getPackageName()) && productId.equals("re_product_01")) {
+                                            }
+                                        } catch (JSONException e) {
+                                            e.printStackTrace();
+                                        }*/
+                                    }
+                                }
+                            }
+                        });
+
+                        // BillingClient가 구글플레이와 연결이 되면 상품목록을 넣어놓음.
                         List<String> strList = new ArrayList<>();
-                        strList.add("production_01");
-                        strList.add("production_02");
-                        //strList.add("re_product_01");
+                        strList.add("re_product_01");
 
                         SkuDetailsParams.Builder params = SkuDetailsParams.newBuilder();
-                        params.setSkusList(strList).setType(BillingClient.SkuType.INAPP);  //인앱상품 (정기결제 = SUBS)
-                        //params.setSkusList(strList).setType(BillingClient.SkuType.SUBS);  //인앱상품 (정기결제 = SUBS)
+                        params.setSkusList(strList).setType(BillingClient.SkuType.SUBS);  //정기결제 상품
 
                         mBillingClient.querySkuDetailsAsync(params.build(), new SkuDetailsResponseListener() {
                             @Override
@@ -109,8 +134,8 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
     }
 
     /**
-    * 실제 버튼(상품)을 눌렀을때 구글플레이에 구매를 요청하는 함수
-    * */
+     * 실제 버튼(상품)을 눌렀을때 구글플레이에 구매를 요청하는 함수
+     */
     public void purchase(Activity activity, String productId) {
         try {
             BillingFlowParams flowParams = null;
@@ -134,8 +159,8 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
     }
 
     /**
-    * 인앱결제에서 구매가 이루어 졌는지 확인하는 Listener Method (PurchaseUpdatedListener)
-    */
+     * 인앱결제에서 구매가 이루어 졌는지 확인하는 Listener Method (PurchaseUpdatedListener)
+     */
     @Override
     public void onPurchasesUpdated(BillingResult billingResult, @Nullable List<Purchase> list) {
         try {
@@ -143,7 +168,7 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
                     && list != null) {
                 for (Purchase purchase : list) {
                     // 사용자가 구매 버튼을 누르면 구매 완료 프로세스 호출
-                    handlePurchase(purchase);
+                    confirmPurchase(purchase);
                 }
             } else if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
                 // Handle an error caused by a user cancelling the purchase flow.
@@ -160,7 +185,7 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
     }
 
     /**
-     * 소비성 구매 정보 확인
+     * 구매 확인 (소비성 상품)
      */
     private void handlePurchase(final Purchase purchase) {
         try {
@@ -173,6 +198,13 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
                         ConsumeParams.newBuilder()
                                 .setPurchaseToken(purchaseToken)
                                 .build();
+
+                mBillingClient.queryPurchasesAsync("", new PurchasesResponseListener() {
+                    @Override
+                    public void onQueryPurchasesResponse(@NonNull BillingResult billingResult, @NonNull List<Purchase> list) {
+
+                    }
+                });
 
                 mBillingClient.consumeAsync(consumeParams, new ConsumeResponseListener() {
                     @Override
@@ -196,16 +228,16 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
     }
 
     /**
-     * 정기 결제 상품 구매 확정
+     * 구매 확인 (정기결제 상품, 비소비성 상품)
      */
-    private void confirmPurchase(final Purchase purchase){
-        try{
-            if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED){
-                if (!purchase.isAcknowledged()){
+    private void confirmPurchase(final Purchase purchase) {
+        try {
+            if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                if (!purchase.isAcknowledged()) {
                     AcknowledgePurchaseParams acknowledgePurchaseParams =
                             AcknowledgePurchaseParams.newBuilder()
-                            .setPurchaseToken(purchase.getPurchaseToken())
-                            .build();
+                                    .setPurchaseToken(purchase.getPurchaseToken())
+                                    .build();
                     mBillingClient.acknowledgePurchase(acknowledgePurchaseParams, new AcknowledgePurchaseResponseListener() {
                         @Override
                         public void onAcknowledgePurchaseResponse(@NonNull BillingResult billingResult) {
@@ -213,14 +245,14 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
                         }
                     });
                 }
-            } else if (purchase.getPurchaseState() == Purchase.PurchaseState.PENDING){
+            } else if (purchase.getPurchaseState() == Purchase.PurchaseState.PENDING) {
                 //구매유예
             } else {
                 //구매확정 취소됨(기타 다양한 사유)
                 mBillingListener.onFail(GlobalKey.PURCHASE_FAIL_CODE.PURCHASE_FAIL_IN_ACKNOWLEDGE);
             }
-        } catch (Exception e){
-            mBillingListener.onError( e.toString() );
+        } catch (Exception e) {
+            mBillingListener.onError(e.toString());
         }
     }
 
@@ -231,9 +263,13 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
                     return item;
                 }
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             mBillingListener.onError(e.toString());
         }
         return null;
+    }
+
+    public BillingClient getmBillingClient() {
+        return mBillingClient;
     }
 }

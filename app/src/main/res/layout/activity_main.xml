@@ -8,10 +8,11 @@
     tools:context=".MainActivity">
 
     <TextView
+        android:id="@+id/tv"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="인앱상품 테스트"
-        android:layout_centerInParent="true"/>
+        android:layout_centerInParent="true"
+        android:text="인앱상품 테스트" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -30,6 +31,13 @@
             android:layout_height="wrap_content"
             android:text="상품2 결제"
             android:onClick="clickProd02"/>
+
+        <Button
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="정기 결제 상품"
+            android:onClick="clickProd03"/>
+
 
     </LinearLayout>
 

@@ -1,44 +1,41 @@
 package com.moondroid.billingtest;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.android.billingclient.api.BillingClient;
-import com.android.billingclient.api.BillingClientStateListener;
-import com.android.billingclient.api.BillingFlowParams;
 import com.android.billingclient.api.BillingResult;
-import com.android.billingclient.api.ConsumeParams;
-import com.android.billingclient.api.ConsumeResponseListener;
 import com.android.billingclient.api.Purchase;
-import com.android.billingclient.api.PurchasesUpdatedListener;
-import com.android.billingclient.api.SkuDetails;
-import com.android.billingclient.api.SkuDetailsParams;
-import com.android.billingclient.api.SkuDetailsResponseListener;
+import com.android.billingclient.api.PurchasesResponseListener;
 
-import org.jetbrains.annotations.NotNull;
-
-import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements BillingListener{
 
-    private MyBillingImpl myBilling;
+    final String TAG = "BillingCheck";
 
     private GoogleBillingImpl googleBilling;
+    private GoogleBillingSubImpl googleBillingSub;
+    private BillingClient mBillingClient;
+
+    private TextView tv;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        myBilling = new MyBillingImpl(this);
-        googleBilling = new GoogleBillingImpl(this);
+        tv = findViewById(R.id.tv);
+
+        googleBilling = new GoogleBillingImpl(this, this);
         googleBilling.init();
+        googleBillingSub = new GoogleBillingSubImpl(this, this);
+        googleBillingSub.init();
     }
 
     public void clickProd01(View view) {
@@ -48,10 +45,23 @@ public class MainActivity extends AppCompatActivity {
     public void clickProd02(View view) {
         googleBilling.purchase(this, "production_02");
     }
+    public void clickProd03(View view) { googleBillingSub.purchase(this, "re_product_01");}
 
     @Override
-    protected void onStop() {
-        Toast.makeText(this, "Process Stopped", Toast.LENGTH_SHORT).show();
-        super.onStop();
+    public void onSuccess(int code, Purchase purchase) {
+        Log.e(TAG, "orderId : " + purchase.getOrderId() +
+        "\npurchaseState : " + purchase.isAcknowledged());
     }
+
+    @Override
+    public void onError(String err) {
+        Log.e(TAG, err);
+    }
+
+    @Override
+    public void onFail(int code) {
+        Log.e(TAG, "return code : " + code);
+    }
+
+
 }
