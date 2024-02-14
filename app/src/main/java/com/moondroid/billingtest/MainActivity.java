@@ -39,11 +39,11 @@ public class MainActivity extends AppCompatActivity implements BillingListener{
     }
 
     public void clickProd01(View view) {
-        googleBilling.purchase(this, "production_01");
+        googleBilling.purchase(this, "inapp_dokkabi");
     }
 
     public void clickProd02(View view) {
-        googleBilling.purchase(this, "production_02");
+        googleBilling.purchase(this, "inapp_peterpan");
     }
     public void clickProd03(View view) { googleBillingSub.purchase(this, "re_product_01");}
 

@@ -15,12 +15,12 @@ import com.android.billingclient.api.BillingFlowParams;
 import com.android.billingclient.api.BillingResult;
 import com.android.billingclient.api.ConsumeParams;
 import com.android.billingclient.api.ConsumeResponseListener;
+import com.android.billingclient.api.ProductDetails;
+import com.android.billingclient.api.ProductDetailsResponseListener;
 import com.android.billingclient.api.Purchase;
-import com.android.billingclient.api.PurchasesResponseListener;
 import com.android.billingclient.api.PurchasesUpdatedListener;
+import com.android.billingclient.api.QueryProductDetailsParams;
 import com.android.billingclient.api.SkuDetails;
-import com.android.billingclient.api.SkuDetailsParams;
-import com.android.billingclient.api.SkuDetailsResponseListener;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +32,7 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
     private final BillingClient mBillingClient;
 
     //상품 목록 list
-    private List<SkuDetails> skuDetailsList = new ArrayList<>();
+    private List<ProductDetails> productDetailsList = new ArrayList<>();
     private Context mContext;
     //결제 완료시 Callback
     private BillingListener mBillingListener;
@@ -51,8 +51,8 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
 
     /**
      * BillingClient를 세팅하는 작업
-     *  - 구글 플레이 연결
-     *  - 상품목록 생성
+     * - 구글 플레이 연결
+     * - 상품목록 생성
      */
     public void init() {
         try {
@@ -62,15 +62,41 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
                     if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                         // BillingClient가 구글플레이와 연결이 되면 상품목록을 넣어넣음.
                         List<String> strList = new ArrayList<>();
-                        strList.add("production_01");
-                        strList.add("production_02");
+                        strList.add("inapp_dokkabi");
+                        strList.add("inapp_peterpan");
                         //strList.add("re_product_01");
 
-                        SkuDetailsParams.Builder params = SkuDetailsParams.newBuilder();
-                        params.setSkusList(strList).setType(BillingClient.SkuType.INAPP);  //인앱상품 (정기결제 = SUBS)
+                        QueryProductDetailsParams queryProductDetailsParams = QueryProductDetailsParams.newBuilder()
+                                .setProductList(List.of(
+                                        QueryProductDetailsParams.Product.newBuilder().setProductId("inapp_dokkabi").setProductType(BillingClient.ProductType.INAPP).build(),
+                                        QueryProductDetailsParams.Product.newBuilder().setProductId("inapp_peterpan").setProductType(BillingClient.ProductType.INAPP).build())
+                                ).build();
+
+                        //SkuDetailsParams.Builder params = SkuDetailsParams.newBuilder();
+                        //params.setSkusList(strList).setType(BillingClient.SkuType.INAPP);  //인앱상품 (정기결제 = SUBS)
                         //params.setSkusList(strList).setType(BillingClient.SkuType.SUBS);  //인앱상품 (정기결제 = SUBS)
 
-                        mBillingClient.querySkuDetailsAsync(params.build(), new SkuDetailsResponseListener() {
+                        mBillingClient.queryProductDetailsAsync(
+                                queryProductDetailsParams,
+                                new ProductDetailsResponseListener() {
+                                    @Override
+                                    public void onProductDetailsResponse(@NonNull BillingResult billingResult, @NonNull List<ProductDetails> list) {
+                                        // Process the result.
+                                        if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                                            if (list.isEmpty()) {
+                                                Log.d(TAG, "list is zero");
+                                            } else {
+                                                Log.e(TAG, list.toString());
+                                                productDetailsList = list;
+                                            }
+                                        } else {
+                                            mBillingListener.onFail(GlobalKey.PURCHASE_FAIL_CODE.PURCHASE_FAIL_SKU_LIST);
+                                        }
+                                    }
+                                }
+                        );
+
+                        /*mBillingClient.querySkuDetailsAsync(params.build(), new SkuDetailsResponseListener() {
                             @Override
                             public void onSkuDetailsResponse(@NonNull BillingResult billingResult,
                                                              @Nullable List<SkuDetails> list) {
@@ -86,7 +112,7 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
                                     mBillingListener.onFail(GlobalKey.PURCHASE_FAIL_CODE.PURCHASE_FAIL_SKU_LIST);
                                 }
                             }
-                        });
+                        });*/
                     } else {
                         mBillingListener.onFail(GlobalKey.PURCHASE_FAIL_CODE.PURCHASE_FAIL_BILLING_SETUP);
                         Log.d(TAG, "google purchase error");
@@ -109,21 +135,25 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
     }
 
     /**
-    * 실제 버튼(상품)을 눌렀을때 구글플레이에 구매를 요청하는 함수
-    * */
+     * 실제 버튼(상품)을 눌렀을때 구글플레이에 구매를 요청하는 함수
+     */
     public void purchase(Activity activity, String productId) {
         try {
-            BillingFlowParams flowParams = null;
-            BillingResult billingResult;
-
             // 구매자가 요청한 상품의 productId를 가져와 BillingFlowParams에 저장하고
             // BillingClient에게 구매 프로세스 시작을 요청한다.
-            SkuDetails sku = getSkuDetail(productId);
-            if (sku != null) {
-                flowParams = BillingFlowParams.newBuilder()
-                        .setSkuDetails(sku)
+
+            ProductDetails productDetails = getProductDetails(productId);
+            if (productDetails != null) {
+                List<BillingFlowParams.ProductDetailsParams> productDetailsParamsList = List.of(
+                        BillingFlowParams.ProductDetailsParams.newBuilder()
+                                .setProductDetails(productDetails).build()
+                );
+
+                BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
+                        .setProductDetailsParamsList(productDetailsParamsList)
                         .build();
-                billingResult = mBillingClient.launchBillingFlow(activity, flowParams);
+
+                BillingResult billingResult = mBillingClient.launchBillingFlow(activity, billingFlowParams);
             } else {
                 Log.d(TAG, "sku is null");
                 mBillingListener.onFail(GlobalKey.PURCHASE_FAIL_CODE.PURCHASE_FAIL_NO_SKU);
@@ -134,8 +164,8 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
     }
 
     /**
-    * 인앱결제에서 구매가 이루어 졌는지 확인하는 Listener Method (PurchaseUpdatedListener)
-    */
+     * 인앱결제에서 구매가 이루어 졌는지 확인하는 Listener Method (PurchaseUpdatedListener)
+     */
     @Override
     public void onPurchasesUpdated(BillingResult billingResult, @Nullable List<Purchase> list) {
         try {
@@ -198,14 +228,14 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
     /**
      * 정기 결제 상품 구매 확정
      */
-    private void confirmPurchase(final Purchase purchase){
-        try{
-            if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED){
-                if (!purchase.isAcknowledged()){
+    private void confirmPurchase(final Purchase purchase) {
+        try {
+            if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                if (!purchase.isAcknowledged()) {
                     AcknowledgePurchaseParams acknowledgePurchaseParams =
                             AcknowledgePurchaseParams.newBuilder()
-                            .setPurchaseToken(purchase.getPurchaseToken())
-                            .build();
+                                    .setPurchaseToken(purchase.getPurchaseToken())
+                                    .build();
                     mBillingClient.acknowledgePurchase(acknowledgePurchaseParams, new AcknowledgePurchaseResponseListener() {
                         @Override
                         public void onAcknowledgePurchaseResponse(@NonNull BillingResult billingResult) {
@@ -213,25 +243,25 @@ public class GoogleBillingImpl implements PurchasesUpdatedListener {
                         }
                     });
                 }
-            } else if (purchase.getPurchaseState() == Purchase.PurchaseState.PENDING){
+            } else if (purchase.getPurchaseState() == Purchase.PurchaseState.PENDING) {
                 //구매유예
             } else {
                 //구매확정 취소됨(기타 다양한 사유)
                 mBillingListener.onFail(GlobalKey.PURCHASE_FAIL_CODE.PURCHASE_FAIL_IN_ACKNOWLEDGE);
             }
-        } catch (Exception e){
-            mBillingListener.onError( e.toString() );
+        } catch (Exception e) {
+            mBillingListener.onError(e.toString());
         }
     }
 
-    private SkuDetails getSkuDetail(String productId) {
+    private ProductDetails getProductDetails(String productId) {
         try {
-            for (SkuDetails item : skuDetailsList) {
-                if (item.getSku().equals(productId)) {
+            for (ProductDetails item : productDetailsList) {
+                if (item.getProductId().equals(productId)) {
                     return item;
                 }
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             mBillingListener.onError(e.toString());
         }
         return null;
